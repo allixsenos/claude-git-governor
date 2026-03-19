@@ -58,10 +58,18 @@ current_branch() {
   git -C "${CWD:-.}" branch --show-current 2>/dev/null || echo ""
 }
 
-block() {
-  jq -n --arg reason "$1" '{"decision":"block","reason":$reason}'
-  exit 2
+deny() {
+  jq -n --arg reason "$1" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$reason}}'
+  exit 0
 }
+
+ask() {
+  jq -n --arg reason "$1" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"ask",permissionDecisionReason:$reason}}'
+  exit 0
+}
+
+# Backward-compatible alias
+block() { deny "$@"; }
 
 # --- Write|Edit rules ---
 

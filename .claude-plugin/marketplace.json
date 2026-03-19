@@ -8,7 +8,7 @@
   "plugins": [
     {
       "name": "git-governor",
-      "source": ".",
+      "source": "./",
       "description": "Enforce git governance — block or prompt on amends, direct commits to protected branches, force pushes, destructive resets, and more",
       "version": "2.0.1"
     }

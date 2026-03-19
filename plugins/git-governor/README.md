@@ -13,6 +13,7 @@ A Claude Code plugin that enforces git governance via PreToolUse hooks. Install 
 | `no-reset-hard` | on | Block `git reset --hard` |
 | `no-discard-all` | on | Block `git checkout .`, `git restore .`, `git clean -f` |
 | `no-rebase-on-protected` | on | Block `git rebase` while on a protected branch |
+| `no-add-all` | on | Block `git add .` and `git add -A` (require explicit file paths) |
 | `require-git-repo` | **off** | Block `Write`/`Edit` to files outside a git repo (opt-in) |
 
 Protected branches default to `main` and `master`.
@@ -41,6 +42,7 @@ Drop a `.claude/git-governor.json` in your project root to override defaults:
     "no-reset-hard": true,
     "no-discard-all": true,
     "no-rebase-on-protected": false,
+    "no-add-all": true,
     "require-git-repo": true
   }
 }

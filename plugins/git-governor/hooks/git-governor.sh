@@ -19,6 +19,7 @@ DEFAULT_RULES='{
   "no-reset-hard": true,
   "no-discard-all": true,
   "no-rebase-on-protected": true,
+  "no-add-all": true,
   "require-git-repo": false
 }'
 
@@ -57,10 +58,18 @@ current_branch() {
   git -C "${CWD:-.}" branch --show-current 2>/dev/null || echo ""
 }
 
-block() {
-  jq -n --arg reason "$1" '{"decision":"block","reason":$reason}'
-  exit 2
+deny() {
+  jq -n --arg reason "$1" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$reason}}'
+  exit 0
 }
+
+ask() {
+  jq -n --arg reason "$1" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"ask",permissionDecisionReason:$reason}}'
+  exit 0
+}
+
+# Backward-compatible alias
+block() { deny "$@"; }
 
 # --- Write|Edit rules ---
 
@@ -91,46 +100,54 @@ fi
 
 # --- Bash rules ---
 
-# No command or not a git command — allow
+# No command — allow
 if [[ -z "$COMMAND" ]]; then
   exit 0
 fi
 
-# Quick check: does this command involve git at all?
-if ! echo "$COMMAND" | grep -qE '\bgit\b'; then
+# Sanitize command: strip heredoc content and quoted strings to prevent
+# false positives from git-related text inside arguments (fixes #16).
+SCAN="$COMMAND"
+if printf '%s' "$SCAN" | grep -q '<<'; then
+  SCAN=$(printf '%s' "$SCAN" | perl -0777 -pe "s/<<~?'?(\w+)'?\s*\n.*?\n\1\b//gs" 2>/dev/null) || SCAN="$COMMAND"
+fi
+SCAN=$(printf '%s' "$SCAN" | sed "s/'[^']*'//g" | sed 's/"[^"]*"//g')
+
+# Quick check: does the sanitized command invoke git?
+if ! printf '%s' "$SCAN" | grep -qE '\bgit\b'; then
   exit 0
 fi
 
 # 1. No amend
 if [[ "$(rule_enabled no-amend)" == "true" ]]; then
-  if echo "$COMMAND" | grep -qE '\bgit\s+commit\b.*--amend\b'; then
+  if printf '%s' "$SCAN" | grep -qE '\bgit\s+commit\b.*--amend\b'; then
     block "git commit --amend is blocked. Create a new commit instead."
   fi
 fi
 
 # 2. No force push (check before push-to-protected since it's more specific)
 if [[ "$(rule_enabled no-force-push)" == "true" ]]; then
-  if echo "$COMMAND" | grep -qE '\bgit\s+push\b.*(\s-f\b|\s--force\b|\s--force-with-lease\b)'; then
+  if printf '%s' "$SCAN" | grep -qE '\bgit\s+push\b.*(\s-f\b|\s--force\b|\s--force-with-lease\b)'; then
     block "Force push is blocked. Push normally or create a new branch."
   fi
   # +refspec syntax: git push origin +branch
-  if echo "$COMMAND" | grep -qE '\bgit\s+push\b.*\s\+\w'; then
+  if printf '%s' "$SCAN" | grep -qE '\bgit\s+push\b.*\s\+\w'; then
     block "Force push via +refspec is blocked. Push normally or create a new branch."
   fi
 fi
 
 # 3. No push to protected branch
 if [[ "$(rule_enabled no-push-to-protected)" == "true" ]]; then
-  if echo "$COMMAND" | grep -qE '\bgit\s+push\b'; then
+  if printf '%s' "$SCAN" | grep -qE '\bgit\s+push\b'; then
     # Check for explicit branch name in command
     for branch in $(echo "$PROTECTED_BRANCHES" | jq -r '.[]'); do
       # Match: git push origin main, git push origin main:main, etc.
-      if echo "$COMMAND" | grep -qE "\bgit\s+push\b.*\b${branch}\b"; then
+      if printf '%s' "$SCAN" | grep -qE "\bgit\s+push\b.*\b${branch}\b"; then
         block "Pushing to protected branch '${branch}' is blocked."
       fi
     done
     # Bare "git push" while on a protected branch
-    if echo "$COMMAND" | grep -qE '\bgit\s+push\s*$' || echo "$COMMAND" | grep -qE '\bgit\s+push\s+(origin|upstream)\s*$'; then
+    if printf '%s' "$SCAN" | grep -qE '\bgit\s+push\s*$' || printf '%s' "$SCAN" | grep -qE '\bgit\s+push\s+(origin|upstream)\s*$'; then
       BRANCH=$(current_branch)
       if [[ -n "$BRANCH" ]] && is_protected "$BRANCH"; then
         block "Pushing to protected branch '${BRANCH}' is blocked (you're on it)."
@@ -141,7 +158,7 @@ fi
 
 # 4. No commit on protected branch
 if [[ "$(rule_enabled no-commit-on-protected)" == "true" ]]; then
-  if echo "$COMMAND" | grep -qE '\bgit\s+commit\b'; then
+  if printf '%s' "$SCAN" | grep -qE '\bgit\s+commit\b'; then
     BRANCH=$(current_branch)
     if [[ -n "$BRANCH" ]] && is_protected "$BRANCH"; then
       block "Committing directly to protected branch '${BRANCH}' is blocked. Create a feature branch first."
@@ -151,7 +168,7 @@ fi
 
 # 5. No reset --hard
 if [[ "$(rule_enabled no-reset-hard)" == "true" ]]; then
-  if echo "$COMMAND" | grep -qE '\bgit\s+reset\b.*--hard\b'; then
+  if printf '%s' "$SCAN" | grep -qE '\bgit\s+reset\b.*--hard\b'; then
     block "git reset --hard is blocked. Use git stash or git reset --soft instead."
   fi
 fi
@@ -159,26 +176,38 @@ fi
 # 6. No discard all changes
 if [[ "$(rule_enabled no-discard-all)" == "true" ]]; then
   # git checkout . / git checkout -- .
-  if echo "$COMMAND" | grep -qE '\bgit\s+checkout\s+(--\s+)?\.(\s|$)'; then
+  if printf '%s' "$SCAN" | grep -qE '\bgit\s+checkout\s+(--\s+)?\.(\s|$)'; then
     block "git checkout . is blocked (discards all changes). Stage and commit your work, or use git stash."
   fi
   # git restore .
-  if echo "$COMMAND" | grep -qE '\bgit\s+restore\s+\.(\s|$)'; then
+  if printf '%s' "$SCAN" | grep -qE '\bgit\s+restore\s+\.(\s|$)'; then
     block "git restore . is blocked (discards all changes). Stage and commit your work, or use git stash."
   fi
   # git clean -f / git clean -fd
-  if echo "$COMMAND" | grep -qE '\bgit\s+clean\b.*-[a-zA-Z]*f'; then
+  if printf '%s' "$SCAN" | grep -qE '\bgit\s+clean\b.*-[a-zA-Z]*f'; then
     block "git clean -f is blocked (deletes untracked files). Review files manually first."
   fi
 fi
 
 # 7. No rebase on protected branch
 if [[ "$(rule_enabled no-rebase-on-protected)" == "true" ]]; then
-  if echo "$COMMAND" | grep -qE '\bgit\s+rebase\b'; then
+  if printf '%s' "$SCAN" | grep -qE '\bgit\s+rebase\b'; then
     BRANCH=$(current_branch)
     if [[ -n "$BRANCH" ]] && is_protected "$BRANCH"; then
       block "Rebasing while on protected branch '${BRANCH}' is blocked. Switch to a feature branch first."
     fi
+  fi
+fi
+
+# 8. No add all (require explicit file paths)
+if [[ "$(rule_enabled no-add-all)" == "true" ]]; then
+  # git add -A / git add --all
+  if printf '%s' "$SCAN" | grep -qE '\bgit\s+add\s+(-A\b|--all\b)'; then
+    block "git add -A / --all is blocked. Stage specific files by name."
+  fi
+  # git add . (but not git add ./specific/path)
+  if printf '%s' "$SCAN" | grep -qE '\bgit\s+add\s+\.(\s|$)'; then
+    block "git add . is blocked. Stage specific files by name."
   fi
 fi
 

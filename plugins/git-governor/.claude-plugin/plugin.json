@@ -1,7 +1,7 @@
 {
   "name": "git-governor",
-  "version": "1.0.0",
-  "description": "Enforce git governance — block amends, direct commits to protected branches, force pushes, and destructive resets",
+  "version": "2.0.0",
+  "description": "Enforce git governance — block or prompt on amends, direct commits to protected branches, force pushes, destructive resets, and more",
   "author": {
     "name": "Luka Kladarić",
     "url": "https://github.com/allixsenos"

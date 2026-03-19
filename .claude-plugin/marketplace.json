@@ -1,5 +1,5 @@
 {
-  "name": "agent-plugins",
+  "name": "allixsenos-agent-plugins",
   "description": "Agent plugins by allixsenos",
   "owner": {
     "name": "allixsenos",
@@ -9,8 +9,8 @@
     {
       "name": "git-governor",
       "source": "./plugins/git-governor",
-      "description": "Enforce git governance — block amends, direct commits to protected branches, force pushes, and destructive resets",
-      "version": "1.0.0"
+      "description": "Enforce git governance — block or prompt on amends, direct commits to protected branches, force pushes, destructive resets, and more",
+      "version": "2.0.0"
     }
   ]
 }

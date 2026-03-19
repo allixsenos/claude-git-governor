@@ -29,7 +29,17 @@ The `require-git-repo` rule blocks file edits to paths that aren't inside a git 
 
 ## Configuration
 
-Drop a `.claude/git-governor.json` in your project root to override defaults:
+Configure interactively with the built-in skill:
+
+```
+/git-governor:config status                       # show effective config
+/git-governor:config set no-amend ask             # set a rule
+/git-governor:config set no-add-all allow --global  # set globally
+/git-governor:config protect release/*            # add protected branch
+/git-governor:config reset                        # remove project config
+```
+
+Or drop a `.claude/git-governor.json` in your project root to override defaults:
 
 ```json
 {
@@ -61,6 +71,16 @@ Every rule supports three modes:
 | `"allow"` | Disabled — no check performed |
 
 Use `"deny"` for operations that should never happen (force push, reset --hard). Use `"ask"` for operations where you want a human checkpoint (committing on protected, discarding changes). Invalid values are treated as errors and blocked.
+
+### Config precedence
+
+| Scope | Path | Precedence |
+|-------|------|------------|
+| Project | `<project>/.claude/git-governor.json` | Highest |
+| Global | `~/.claude/git-governor.json` | Middle |
+| Defaults | Built into the hook | Lowest |
+
+For rules, each rule is resolved independently: project > global > default. For `protected-branches`, the first config that defines the key wins entirely (no merging).
 
 ## License
 

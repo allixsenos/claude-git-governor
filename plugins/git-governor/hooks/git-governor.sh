@@ -23,26 +23,31 @@ DEFAULT_RULES='{
   "require-git-repo": "allow"
 }'
 
-# Load project config if present
-CONFIG_FILE="${CWD:-.}/.claude/git-governor.json"
-if [[ -f "$CONFIG_FILE" ]]; then
-  PROTECTED_BRANCHES=$(jq -c '.["protected-branches"] // '"$DEFAULT_PROTECTED_BRANCHES" "$CONFIG_FILE")
-  rule_mode() {
-    local val
-    # Use has() to distinguish "key absent" from "key set to allow"
-    if jq -e ".rules | has(\"$1\")" "$CONFIG_FILE" > /dev/null 2>&1; then
-      val=$(jq -r ".rules[\"$1\"]" "$CONFIG_FILE")
-    else
-      val=$(echo "$DEFAULT_RULES" | jq -r ".[\"$1\"]")
-    fi
-    echo "$val"
-  }
+# Load config: project > global > defaults
+PROJECT_CONFIG="${CWD:-.}/.claude/git-governor.json"
+GLOBAL_CONFIG="${HOME}/.claude/git-governor.json"
+
+# Protected branches: first config that defines them wins
+if [[ -f "$PROJECT_CONFIG" ]] && jq -e '.["protected-branches"]' "$PROJECT_CONFIG" > /dev/null 2>&1; then
+  PROTECTED_BRANCHES=$(jq -c '.["protected-branches"]' "$PROJECT_CONFIG")
+elif [[ -f "$GLOBAL_CONFIG" ]] && jq -e '.["protected-branches"]' "$GLOBAL_CONFIG" > /dev/null 2>&1; then
+  PROTECTED_BRANCHES=$(jq -c '.["protected-branches"]' "$GLOBAL_CONFIG")
 else
   PROTECTED_BRANCHES="$DEFAULT_PROTECTED_BRANCHES"
-  rule_mode() {
-    echo "$DEFAULT_RULES" | jq -r ".[\"$1\"]"
-  }
 fi
+
+# Rule mode: project > global > default
+rule_mode() {
+  local val
+  if [[ -f "$PROJECT_CONFIG" ]] && jq -e ".rules | has(\"$1\")" "$PROJECT_CONFIG" > /dev/null 2>&1; then
+    val=$(jq -r ".rules[\"$1\"]" "$PROJECT_CONFIG")
+  elif [[ -f "$GLOBAL_CONFIG" ]] && jq -e ".rules | has(\"$1\")" "$GLOBAL_CONFIG" > /dev/null 2>&1; then
+    val=$(jq -r ".rules[\"$1\"]" "$GLOBAL_CONFIG")
+  else
+    val=$(echo "$DEFAULT_RULES" | jq -r ".[\"$1\"]")
+  fi
+  echo "$val"
+}
 
 # Convert protected branches JSON array to a bash-friendly check
 is_protected() {

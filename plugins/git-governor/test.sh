@@ -275,13 +275,13 @@ run_hook "$(write_input "$NO_GIT_DIR/file.txt" "$NO_GIT_DIR")"
 expect_allow "allows write outside git (rule off by default)"
 
 # Enable rule
-set_config '{"rules":{"require-git-repo":true}}'
+set_config '{"rules":{"require-git-repo":"deny"}}'
 run_hook "$(write_input "$TEST_DIR/file.txt")"
 expect_allow "allows write inside git repo"
 
 # Write outside git with rule on — need config in non-git dir
 mkdir -p "$NO_GIT_DIR/.claude"
-echo '{"rules":{"require-git-repo":true}}' > "$NO_GIT_DIR/.claude/git-governor.json"
+echo '{"rules":{"require-git-repo":"deny"}}' > "$NO_GIT_DIR/.claude/git-governor.json"
 run_hook "$(write_input "$NO_GIT_DIR/file.txt" "$NO_GIT_DIR")"
 expect_deny "blocks write outside git repo (rule on)"
 
@@ -323,7 +323,8 @@ teardown
 printf "\n${BOLD}Config override${RESET}\n"
 setup
 
-# Disable a rule via config
+# Disable a rule via config (on feature branch to avoid no-commit-on-protected)
+git -C "$TEST_DIR" checkout -b feature -q
 set_config '{"rules":{"no-amend":false}}'
 run_hook "$(bash_input 'git commit --amend')"
 expect_allow "allows amend when rule disabled"

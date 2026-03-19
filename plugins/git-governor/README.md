@@ -56,11 +56,11 @@ Every rule supports three modes:
 
 | Mode | Effect |
 |------|--------|
-| `"deny"` / `true` | Hard block — tool call is prevented |
+| `"deny"` | Hard block — tool call is prevented |
 | `"ask"` | Prompt the user for confirmation before proceeding |
 | `false` | Disabled — no check performed |
 
-Use `"deny"` for operations that should never happen (force push, reset --hard). Use `"ask"` for operations where you want a human checkpoint (committing on protected, discarding changes). Backward compatible: `true` still works as an alias for `"deny"`.
+Use `"deny"` for operations that should never happen (force push, reset --hard). Use `"ask"` for operations where you want a human checkpoint (committing on protected, discarding changes).
 
 ## License
 

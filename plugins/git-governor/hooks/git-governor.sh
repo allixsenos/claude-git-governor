@@ -69,13 +69,13 @@ ask() {
   exit 0
 }
 
-# Enforce a rule based on its mode: "deny" / true → deny, "ask" → ask, false → skip
+# Enforce a rule based on its mode: "deny" → deny, "ask" → ask
 enforce() {
   local mode="$1" reason="$2"
   case "$mode" in
-    deny|true) deny "$reason" ;;
-    ask)       ask "$reason" ;;
-    *)         return ;;
+    deny) deny "$reason" ;;
+    ask)  ask "$reason" ;;
+    *)    return ;;
   esac
 }
 

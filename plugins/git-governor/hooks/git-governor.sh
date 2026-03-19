@@ -109,7 +109,7 @@ fi
 # false positives from git-related text inside arguments (fixes #16).
 SCAN="$COMMAND"
 if printf '%s' "$SCAN" | grep -q '<<'; then
-  SCAN=$(printf '%s' "$SCAN" | perl -0777 -pe "s/<<~?'?(\w+)'?\s*\n.*?\n\1//gs" 2>/dev/null) || SCAN="$COMMAND"
+  SCAN=$(printf '%s' "$SCAN" | perl -0777 -pe "s/<<~?'?(\w+)'?\s*\n.*?\n\1\b//gs" 2>/dev/null) || SCAN="$COMMAND"
 fi
 SCAN=$(printf '%s' "$SCAN" | sed "s/'[^']*'//g" | sed 's/"[^"]*"//g')
 

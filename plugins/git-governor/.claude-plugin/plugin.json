@@ -6,7 +6,7 @@
     "name": "Luka Kladarić",
     "url": "https://github.com/allixsenos"
   },
-  "repository": "https://github.com/allixsenos/git-governor",
+  "repository": "https://github.com/allixsenos/claude-plugins",
   "license": "MIT",
   "keywords": ["git", "safety", "governance", "hooks", "protection"]
 }

@@ -1,0 +1,16 @@
+{
+  "name": "claude-git-governor",
+  "description": "Git governance plugin for Claude Code",
+  "owner": {
+    "name": "allixsenos",
+    "url": "https://github.com/allixsenos"
+  },
+  "plugins": [
+    {
+      "name": "git-governor",
+      "source": ".",
+      "description": "Enforce git governance — block or prompt on amends, direct commits to protected branches, force pushes, destructive resets, and more",
+      "version": "2.0.1"
+    }
+  ]
+}

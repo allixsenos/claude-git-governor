@@ -1,26 +1,26 @@
 ---
-name: config
+name: git-governor
 description: >
-  Configure git-governor rules and protected branches. Use when the user
-  invokes /git-governor:config to set rule modes (deny/ask/allow), view
-  effective configuration, manage protected branch patterns, or reset config.
+  View and configure git-governor rules and protected branches. Use when the
+  user invokes /git-governor to view config, or with subcommands to set rule
+  modes (deny/ask/allow), manage protected branch patterns, or reset config.
 ---
 
-# git-governor config
+# git-governor
 
-Interactive configuration for the git-governor plugin.
+View and configure the git-governor plugin.
 
 ## Usage
 
 ```
-/git-governor:config <command> [args] [--global]
+/git-governor [command] [args] [--global]
 ```
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| `status` | Show effective config with source of each value |
+| *(none)* | Show effective config (default) |
 | `set <rule> <mode>` | Set a rule's mode |
 | `protect <pattern>` | Add a protected branch pattern |
 | `unprotect <pattern>` | Remove a protected branch pattern |
@@ -41,54 +41,62 @@ For protected branches: the first config that defines `protected-branches` wins 
 
 ## Valid rules
 
-| Rule | Default |
-|------|---------|
-| `no-amend` | `deny` |
-| `no-commit-on-protected` | `deny` |
-| `no-push-to-protected` | `deny` |
-| `no-force-push` | `deny` |
-| `no-reset-hard` | `deny` |
-| `no-discard-all` | `deny` |
-| `no-rebase-on-protected` | `deny` |
-| `no-add-all` | `deny` |
-| `require-git-repo` | `allow` |
+| Rule | Default | Description |
+|------|---------|-------------|
+| `no-amend` | `deny` | Block `git commit --amend` |
+| `no-commit-on-protected` | `deny` | Block commits directly on protected branches |
+| `no-push-to-protected` | `deny` | Block pushing to protected branches |
+| `no-force-push` | `deny` | Block `--force`, `--force-with-lease`, and `+refspec` pushes |
+| `no-reset-hard` | `deny` | Block `git reset --hard` |
+| `no-discard-all` | `deny` | Block `git checkout .`, `git restore .`, `git clean -f` |
+| `no-rebase-on-protected` | `deny` | Block rebase while on a protected branch |
+| `no-add-all` | `deny` | Block `git add -A` and `git add .` |
+| `require-git-repo` | `allow` | Require a git repo for Write/Edit operations |
 
 ## Valid modes
 
 | Mode | Effect |
 |------|--------|
-| `"deny"` | Hard block — tool call prevented |
-| `"ask"` | Prompt user for confirmation |
-| `"allow"` | Disabled — no check |
+| `deny` | Hard block — tool call prevented |
+| `ask` | Prompt user for confirmation |
+| `allow` | Disabled — no check |
 
 ## Instructions
 
-ARGUMENTS: provided after the skill name, e.g. `/git-governor:config status`
+ARGUMENTS: provided after the skill name, e.g. `/git-governor set no-amend ask`
 
-### Command: `status`
+### Default command (no arguments, or `status`)
 
-1. Read defaults (use the table above).
+1. Read defaults from the table above.
 2. Read global config at `~/.claude/git-governor.json` if it exists.
 3. Read project config at `<CWD>/.claude/git-governor.json` if it exists.
 4. Compute the effective value for each rule using merge precedence: project > global > default.
-5. Display a table with columns: Rule, Effective Mode, Source (default/global/project).
+5. Display a table with columns: Rule, Description, Default, Global, Project, Effective.
+   - For Default/Global/Project columns: show the mode if set, or `-` if not set at that level.
+   - For Effective: show the winning value (project > global > default).
 6. Display the effective protected branches and their source.
+7. Print short instructions for changing settings.
 
 Example output:
 ```
-| Rule                      | Mode  | Source  |
-|---------------------------|-------|---------|
-| no-amend                  | deny  | default |
-| no-commit-on-protected    | ask   | project |
-| no-push-to-protected      | deny  | global  |
-| no-force-push             | deny  | default |
-| no-reset-hard             | deny  | default |
-| no-discard-all            | ask   | project |
-| no-rebase-on-protected    | deny  | default |
-| no-add-all                | deny  | default |
-| require-git-repo          | allow | default |
+| Rule                    | Description                         | Default | Global | Project | Effective |
+|-------------------------|-------------------------------------|---------|--------|---------|-----------|
+| no-amend                | Block git commit --amend            | deny    | -      | ask     | ask       |
+| no-commit-on-protected  | Block commits on protected branches | deny    | -      | -       | deny      |
+| no-push-to-protected    | Block pushing to protected branches | deny    | deny   | -       | deny      |
+| no-force-push           | Block force push                    | deny    | -      | -       | deny      |
+| no-reset-hard           | Block git reset --hard              | deny    | -      | -       | deny      |
+| no-discard-all          | Block checkout/restore/clean all    | deny    | -      | allow   | allow     |
+| no-rebase-on-protected  | Block rebase on protected branches  | deny    | -      | -       | deny      |
+| no-add-all              | Block git add -A / git add .        | deny    | -      | -       | deny      |
+| require-git-repo        | Require git repo for file edits     | allow   | -      | -       | allow     |
 
 Protected branches: ["main", "master"] (default)
+
+To change a rule:   /git-governor set <rule> <mode>        (modes: deny, ask, allow)
+To add a branch:    /git-governor protect <pattern>
+To remove a branch: /git-governor unprotect <pattern>
+Add --global to target ~/.claude/git-governor.json instead of the project config.
 ```
 
 ### Command: `set <rule> <mode>`
@@ -133,9 +141,9 @@ Protected branches: ["main", "master"] (default)
 3. Delete the file using Bash `rm`.
 4. Confirm: `Deleted <scope> config. Defaults will be used.`
 
-### No command or `help`
+### Command: `help`
 
-If invoked with no arguments or with `help`, display the usage summary showing all commands, valid rules, and valid modes.
+Display the usage summary showing all commands, valid rules, and valid modes.
 
 ### JSON handling
 

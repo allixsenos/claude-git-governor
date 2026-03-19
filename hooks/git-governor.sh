@@ -3,18 +3,10 @@ set -euo pipefail
 
 # Read hook input from stdin
 INPUT=$(cat)
+TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty')
 COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
+FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty')
 CWD=$(echo "$INPUT" | jq -r '.cwd // empty')
-
-# No command or not a git command — allow
-if [[ -z "$COMMAND" ]]; then
-  exit 0
-fi
-
-# Quick check: does this command involve git at all?
-if ! echo "$COMMAND" | grep -qE '\bgit\b'; then
-  exit 0
-fi
 
 # --- Configuration ---
 
@@ -26,7 +18,8 @@ DEFAULT_RULES='{
   "no-force-push": true,
   "no-reset-hard": true,
   "no-discard-all": true,
-  "no-rebase-on-protected": true
+  "no-rebase-on-protected": true,
+  "require-git-repo": false
 }'
 
 # Load project config if present
@@ -69,7 +62,44 @@ block() {
   exit 2
 }
 
-# --- Rules ---
+# --- Write|Edit rules ---
+
+if [[ "$TOOL_NAME" == "Write" || "$TOOL_NAME" == "Edit" ]]; then
+  # 8. Require git repo for file edits (opt-in)
+  if [[ "$(rule_enabled require-git-repo)" == "true" ]] && [[ -n "$FILE_PATH" ]]; then
+    FILE_DIR=$(dirname "$FILE_PATH")
+    if ! git -C "$FILE_DIR" rev-parse --git-dir > /dev/null 2>&1; then
+      # Check for opt-out in CLAUDE.md (search upward)
+      CHECK_DIR="$FILE_DIR"
+      OPTED_OUT=false
+      while [[ "$CHECK_DIR" != "/" ]]; do
+        for candidate in "$CHECK_DIR/CLAUDE.md" "$CHECK_DIR/.claude/CLAUDE.md"; do
+          if [[ -f "$candidate" ]] && grep -qi "no.* git\|not use git\|without git\|git.*disabled\|skip.*git" "$candidate" 2>/dev/null; then
+            OPTED_OUT=true
+            break 2
+          fi
+        done
+        CHECK_DIR=$(dirname "$CHECK_DIR")
+      done
+      if [[ "$OPTED_OUT" == "false" ]]; then
+        block "No git repository found for ${FILE_PATH}. Initialize a git repo, or add a git opt-out note to CLAUDE.md."
+      fi
+    fi
+  fi
+  exit 0
+fi
+
+# --- Bash rules ---
+
+# No command or not a git command — allow
+if [[ -z "$COMMAND" ]]; then
+  exit 0
+fi
+
+# Quick check: does this command involve git at all?
+if ! echo "$COMMAND" | grep -qE '\bgit\b'; then
+  exit 0
+fi
 
 # 1. No amend
 if [[ "$(rule_enabled no-amend)" == "true" ]]; then

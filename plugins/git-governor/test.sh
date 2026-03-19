@@ -53,6 +53,13 @@ run_hook() {
   EXIT_CODE=${PIPESTATUS[1]:-0}
 }
 
+# Run hook with a custom HOME (for global config tests)
+run_hook_with_home() {
+  local input="$1" fake_home="$2"
+  OUTPUT=$(echo "$input" | HOME="$fake_home" bash "$HOOK" 2>/dev/null) || true
+  EXIT_CODE=${PIPESTATUS[1]:-0}
+}
+
 # Extract permissionDecision from output
 get_decision() {
   echo "$OUTPUT" | jq -r '.hookSpecificOutput.permissionDecision // empty' 2>/dev/null || true
@@ -339,6 +346,50 @@ run_hook "$(bash_input 'git push origin develop')"
 expect_allow "allows push to non-protected branch"
 
 clear_config
+teardown
+
+# ============================================================
+printf "\n${BOLD}Global config${RESET}\n"
+setup
+FAKE_HOME=$(mktemp -d)
+
+# Global config only: allow amend globally
+git -C "$TEST_DIR" checkout -b feature -q
+mkdir -p "$FAKE_HOME/.claude"
+echo '{"rules":{"no-amend":"allow"}}' > "$FAKE_HOME/.claude/git-governor.json"
+run_hook_with_home "$(bash_input 'git commit --amend')" "$FAKE_HOME"
+expect_allow "global config: allows amend when set to allow"
+
+# Project overrides global: global=allow, project=deny
+set_config '{"rules":{"no-amend":"deny"}}'
+run_hook_with_home "$(bash_input 'git commit --amend')" "$FAKE_HOME"
+expect_deny "project overrides global: deny beats allow"
+clear_config
+
+# Global protected branches
+echo '{"protected-branches":["main","staging"]}' > "$FAKE_HOME/.claude/git-governor.json"
+run_hook_with_home "$(bash_input 'git push origin staging')" "$FAKE_HOME"
+expect_deny "global config: blocks push to globally-protected branch"
+
+# Project overrides global protected branches
+set_config '{"protected-branches":["main"]}'
+run_hook_with_home "$(bash_input 'git push origin staging')" "$FAKE_HOME"
+expect_allow "project overrides global protected branches"
+clear_config
+
+rm -rf "$FAKE_HOME"
+teardown
+
+# ============================================================
+printf "\n${BOLD}Invalid config values${RESET}\n"
+setup
+git -C "$TEST_DIR" checkout -b feature -q
+
+set_config '{"rules":{"no-amend":"bogus"}}'
+run_hook "$(bash_input 'git commit --amend')"
+expect_deny "invalid mode value is denied with error"
+clear_config
+
 teardown
 
 # ============================================================

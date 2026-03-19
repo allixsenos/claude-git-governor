@@ -1,6 +1,6 @@
 {
-  "name": "claude-plugins",
-  "description": "Claude Code plugins by allixsenos",
+  "name": "agent-plugins",
+  "description": "Agent plugins by allixsenos",
   "owner": {
     "name": "allixsenos",
     "url": "https://github.com/allixsenos"

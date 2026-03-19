@@ -325,7 +325,7 @@ setup
 
 # Disable a rule via config (on feature branch to avoid no-commit-on-protected)
 git -C "$TEST_DIR" checkout -b feature -q
-set_config '{"rules":{"no-amend":false}}'
+set_config '{"rules":{"no-amend":"allow"}}'
 run_hook "$(bash_input 'git commit --amend')"
 expect_allow "allows amend when rule disabled"
 clear_config

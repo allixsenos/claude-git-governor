@@ -20,7 +20,7 @@ DEFAULT_RULES='{
   "no-discard-all": "deny",
   "no-rebase-on-protected": "deny",
   "no-add-all": "deny",
-  "require-git-repo": false
+  "require-git-repo": "allow"
 }'
 
 # Load project config if present
@@ -29,7 +29,7 @@ if [[ -f "$CONFIG_FILE" ]]; then
   PROTECTED_BRANCHES=$(jq -c '.["protected-branches"] // '"$DEFAULT_PROTECTED_BRANCHES" "$CONFIG_FILE")
   rule_mode() {
     local val
-    # Use has() to distinguish "key absent" from "key set to false"
+    # Use has() to distinguish "key absent" from "key set to allow"
     if jq -e ".rules | has(\"$1\")" "$CONFIG_FILE" > /dev/null 2>&1; then
       val=$(jq -r ".rules[\"$1\"]" "$CONFIG_FILE")
     else
@@ -69,20 +69,21 @@ ask() {
   exit 0
 }
 
-# Enforce a rule based on its mode: "deny" → deny, "ask" → ask
+# Enforce a rule: "deny" → block, "ask" → prompt user, "allow" → skip
 enforce() {
   local mode="$1" reason="$2"
   case "$mode" in
     deny) deny "$reason" ;;
     ask)  ask "$reason" ;;
-    *)    return ;;
+    allow) return ;;
+    *) deny "Invalid rule mode '${mode}'. Valid values: deny, ask, allow." ;;
   esac
 }
 
-# Check if a rule is active (anything other than false/null)
+# Check if a rule is active (not "allow")
 rule_active() {
   local mode="$1"
-  [[ "$mode" != "false" ]] && [[ "$mode" != "null" ]] && [[ -n "$mode" ]]
+  [[ "$mode" != "allow" ]]
 }
 
 # --- Write|Edit rules ---

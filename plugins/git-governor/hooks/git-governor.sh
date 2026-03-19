@@ -12,14 +12,14 @@ CWD=$(echo "$INPUT" | jq -r '.cwd // empty')
 
 DEFAULT_PROTECTED_BRANCHES='["main","master"]'
 DEFAULT_RULES='{
-  "no-amend": true,
-  "no-commit-on-protected": true,
-  "no-push-to-protected": true,
-  "no-force-push": true,
-  "no-reset-hard": true,
-  "no-discard-all": true,
-  "no-rebase-on-protected": true,
-  "no-add-all": true,
+  "no-amend": "deny",
+  "no-commit-on-protected": "deny",
+  "no-push-to-protected": "deny",
+  "no-force-push": "deny",
+  "no-reset-hard": "deny",
+  "no-discard-all": "deny",
+  "no-rebase-on-protected": "deny",
+  "no-add-all": "deny",
   "require-git-repo": false
 }'
 
@@ -27,18 +27,19 @@ DEFAULT_RULES='{
 CONFIG_FILE="${CWD:-.}/.claude/git-governor.json"
 if [[ -f "$CONFIG_FILE" ]]; then
   PROTECTED_BRANCHES=$(jq -c '.["protected-branches"] // '"$DEFAULT_PROTECTED_BRANCHES" "$CONFIG_FILE")
-  rule_enabled() {
+  rule_mode() {
     local val
-    val=$(jq -r ".rules[\"$1\"] // null" "$CONFIG_FILE")
-    if [[ "$val" == "null" ]]; then
-      echo "$DEFAULT_RULES" | jq -r ".[\"$1\"]"
+    # Use has() to distinguish "key absent" from "key set to false"
+    if jq -e ".rules | has(\"$1\")" "$CONFIG_FILE" > /dev/null 2>&1; then
+      val=$(jq -r ".rules[\"$1\"]" "$CONFIG_FILE")
     else
-      echo "$val"
+      val=$(echo "$DEFAULT_RULES" | jq -r ".[\"$1\"]")
     fi
+    echo "$val"
   }
 else
   PROTECTED_BRANCHES="$DEFAULT_PROTECTED_BRANCHES"
-  rule_enabled() {
+  rule_mode() {
     echo "$DEFAULT_RULES" | jq -r ".[\"$1\"]"
   }
 fi
@@ -68,14 +69,28 @@ ask() {
   exit 0
 }
 
-# Backward-compatible alias
-block() { deny "$@"; }
+# Enforce a rule based on its mode: "deny" / true → deny, "ask" → ask, false → skip
+enforce() {
+  local mode="$1" reason="$2"
+  case "$mode" in
+    deny|true) deny "$reason" ;;
+    ask)       ask "$reason" ;;
+    *)         return ;;
+  esac
+}
+
+# Check if a rule is active (anything other than false/null)
+rule_active() {
+  local mode="$1"
+  [[ "$mode" != "false" ]] && [[ "$mode" != "null" ]] && [[ -n "$mode" ]]
+}
 
 # --- Write|Edit rules ---
 
 if [[ "$TOOL_NAME" == "Write" || "$TOOL_NAME" == "Edit" ]]; then
-  # 8. Require git repo for file edits (opt-in)
-  if [[ "$(rule_enabled require-git-repo)" == "true" ]] && [[ -n "$FILE_PATH" ]]; then
+  # Require git repo for file edits (opt-in)
+  MODE=$(rule_mode require-git-repo)
+  if rule_active "$MODE" && [[ -n "$FILE_PATH" ]]; then
     FILE_DIR=$(dirname "$FILE_PATH")
     if ! git -C "$FILE_DIR" rev-parse --git-dir > /dev/null 2>&1; then
       # Check for opt-out in CLAUDE.md (search upward)
@@ -91,7 +106,7 @@ if [[ "$TOOL_NAME" == "Write" || "$TOOL_NAME" == "Edit" ]]; then
         CHECK_DIR=$(dirname "$CHECK_DIR")
       done
       if [[ "$OPTED_OUT" == "false" ]]; then
-        block "No git repository found for ${FILE_PATH}. Initialize a git repo, or add a git opt-out note to CLAUDE.md."
+        enforce "$MODE" "No git repository found for ${FILE_PATH}. Initialize a git repo, or add a git opt-out note to CLAUDE.md."
       fi
     fi
   fi
@@ -119,95 +134,102 @@ if ! printf '%s' "$SCAN" | grep -qE '\bgit\b'; then
 fi
 
 # 1. No amend
-if [[ "$(rule_enabled no-amend)" == "true" ]]; then
+MODE=$(rule_mode no-amend)
+if rule_active "$MODE"; then
   if printf '%s' "$SCAN" | grep -qE '\bgit\s+commit\b.*--amend\b'; then
-    block "git commit --amend is blocked. Create a new commit instead."
+    enforce "$MODE" "git commit --amend is blocked. Create a new commit instead."
   fi
 fi
 
 # 2. No force push (check before push-to-protected since it's more specific)
-if [[ "$(rule_enabled no-force-push)" == "true" ]]; then
+MODE=$(rule_mode no-force-push)
+if rule_active "$MODE"; then
   if printf '%s' "$SCAN" | grep -qE '\bgit\s+push\b.*(\s-f\b|\s--force\b|\s--force-with-lease\b)'; then
-    block "Force push is blocked. Push normally or create a new branch."
+    enforce "$MODE" "Force push is blocked. Push normally or create a new branch."
   fi
   # +refspec syntax: git push origin +branch
   if printf '%s' "$SCAN" | grep -qE '\bgit\s+push\b.*\s\+\w'; then
-    block "Force push via +refspec is blocked. Push normally or create a new branch."
+    enforce "$MODE" "Force push via +refspec is blocked. Push normally or create a new branch."
   fi
 fi
 
 # 3. No push to protected branch
-if [[ "$(rule_enabled no-push-to-protected)" == "true" ]]; then
+MODE=$(rule_mode no-push-to-protected)
+if rule_active "$MODE"; then
   if printf '%s' "$SCAN" | grep -qE '\bgit\s+push\b'; then
     # Check for explicit branch name in command
     for branch in $(echo "$PROTECTED_BRANCHES" | jq -r '.[]'); do
-      # Match: git push origin main, git push origin main:main, etc.
       if printf '%s' "$SCAN" | grep -qE "\bgit\s+push\b.*\b${branch}\b"; then
-        block "Pushing to protected branch '${branch}' is blocked."
+        enforce "$MODE" "Pushing to protected branch '${branch}' is blocked."
       fi
     done
     # Bare "git push" while on a protected branch
     if printf '%s' "$SCAN" | grep -qE '\bgit\s+push\s*$' || printf '%s' "$SCAN" | grep -qE '\bgit\s+push\s+(origin|upstream)\s*$'; then
       BRANCH=$(current_branch)
       if [[ -n "$BRANCH" ]] && is_protected "$BRANCH"; then
-        block "Pushing to protected branch '${BRANCH}' is blocked (you're on it)."
+        enforce "$MODE" "Pushing to protected branch '${BRANCH}' is blocked (you're on it)."
       fi
     fi
   fi
 fi
 
 # 4. No commit on protected branch
-if [[ "$(rule_enabled no-commit-on-protected)" == "true" ]]; then
+MODE=$(rule_mode no-commit-on-protected)
+if rule_active "$MODE"; then
   if printf '%s' "$SCAN" | grep -qE '\bgit\s+commit\b'; then
     BRANCH=$(current_branch)
     if [[ -n "$BRANCH" ]] && is_protected "$BRANCH"; then
-      block "Committing directly to protected branch '${BRANCH}' is blocked. Create a feature branch first."
+      enforce "$MODE" "Committing directly to protected branch '${BRANCH}' is blocked. Create a feature branch first."
     fi
   fi
 fi
 
 # 5. No reset --hard
-if [[ "$(rule_enabled no-reset-hard)" == "true" ]]; then
+MODE=$(rule_mode no-reset-hard)
+if rule_active "$MODE"; then
   if printf '%s' "$SCAN" | grep -qE '\bgit\s+reset\b.*--hard\b'; then
-    block "git reset --hard is blocked. Use git stash or git reset --soft instead."
+    enforce "$MODE" "git reset --hard is blocked. Use git stash or git reset --soft instead."
   fi
 fi
 
 # 6. No discard all changes
-if [[ "$(rule_enabled no-discard-all)" == "true" ]]; then
+MODE=$(rule_mode no-discard-all)
+if rule_active "$MODE"; then
   # git checkout . / git checkout -- .
   if printf '%s' "$SCAN" | grep -qE '\bgit\s+checkout\s+(--\s+)?\.(\s|$)'; then
-    block "git checkout . is blocked (discards all changes). Stage and commit your work, or use git stash."
+    enforce "$MODE" "git checkout . discards all changes. Stage and commit your work, or use git stash."
   fi
   # git restore .
   if printf '%s' "$SCAN" | grep -qE '\bgit\s+restore\s+\.(\s|$)'; then
-    block "git restore . is blocked (discards all changes). Stage and commit your work, or use git stash."
+    enforce "$MODE" "git restore . discards all changes. Stage and commit your work, or use git stash."
   fi
   # git clean -f / git clean -fd
   if printf '%s' "$SCAN" | grep -qE '\bgit\s+clean\b.*-[a-zA-Z]*f'; then
-    block "git clean -f is blocked (deletes untracked files). Review files manually first."
+    enforce "$MODE" "git clean -f deletes untracked files. Review files manually first."
   fi
 fi
 
 # 7. No rebase on protected branch
-if [[ "$(rule_enabled no-rebase-on-protected)" == "true" ]]; then
+MODE=$(rule_mode no-rebase-on-protected)
+if rule_active "$MODE"; then
   if printf '%s' "$SCAN" | grep -qE '\bgit\s+rebase\b'; then
     BRANCH=$(current_branch)
     if [[ -n "$BRANCH" ]] && is_protected "$BRANCH"; then
-      block "Rebasing while on protected branch '${BRANCH}' is blocked. Switch to a feature branch first."
+      enforce "$MODE" "Rebasing while on protected branch '${BRANCH}' is blocked. Switch to a feature branch first."
     fi
   fi
 fi
 
 # 8. No add all (require explicit file paths)
-if [[ "$(rule_enabled no-add-all)" == "true" ]]; then
+MODE=$(rule_mode no-add-all)
+if rule_active "$MODE"; then
   # git add -A / git add --all
   if printf '%s' "$SCAN" | grep -qE '\bgit\s+add\s+(-A\b|--all\b)'; then
-    block "git add -A / --all is blocked. Stage specific files by name."
+    enforce "$MODE" "git add -A / --all is blocked. Stage specific files by name."
   fi
   # git add . (but not git add ./specific/path)
   if printf '%s' "$SCAN" | grep -qE '\bgit\s+add\s+\.(\s|$)'; then
-    block "git add . is blocked. Stage specific files by name."
+    enforce "$MODE" "git add . is blocked. Stage specific files by name."
   fi
 fi
 

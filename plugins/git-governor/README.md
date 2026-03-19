@@ -2,18 +2,18 @@
 
 A Claude Code plugin that enforces git governance via PreToolUse hooks. Install once, never worry about Claude nuking your git history again.
 
-## What it blocks
+## Rules
 
 | Rule | Default | Description |
 |------|---------|-------------|
-| `no-amend` | on | Block `git commit --amend` |
-| `no-commit-on-protected` | on | Block `git commit` on protected branches |
-| `no-push-to-protected` | on | Block `git push` targeting protected branches |
-| `no-force-push` | on | Block `--force`, `--force-with-lease`, `+refs` push syntax |
-| `no-reset-hard` | on | Block `git reset --hard` |
-| `no-discard-all` | on | Block `git checkout .`, `git restore .`, `git clean -f` |
-| `no-rebase-on-protected` | on | Block `git rebase` while on a protected branch |
-| `no-add-all` | on | Block `git add .` and `git add -A` (require explicit file paths) |
+| `no-amend` | deny | Block `git commit --amend` |
+| `no-commit-on-protected` | deny | Block `git commit` on protected branches |
+| `no-push-to-protected` | deny | Block `git push` targeting protected branches |
+| `no-force-push` | deny | Block `--force`, `--force-with-lease`, `+refs` push syntax |
+| `no-reset-hard` | deny | Block `git reset --hard` |
+| `no-discard-all` | deny | Block `git checkout .`, `git restore .`, `git clean -f` |
+| `no-rebase-on-protected` | deny | Block `git rebase` while on a protected branch |
+| `no-add-all` | deny | Block `git add .` and `git add -A` (require explicit file paths) |
 | `require-git-repo` | **off** | Block `Write`/`Edit` to files outside a git repo (opt-in) |
 
 Protected branches default to `main` and `master`.
@@ -35,20 +35,32 @@ Drop a `.claude/git-governor.json` in your project root to override defaults:
 {
   "protected-branches": ["main", "master", "release/*"],
   "rules": {
-    "no-amend": true,
-    "no-force-push": true,
-    "no-commit-on-protected": true,
-    "no-push-to-protected": true,
-    "no-reset-hard": true,
-    "no-discard-all": true,
+    "no-amend": "deny",
+    "no-force-push": "deny",
+    "no-commit-on-protected": "ask",
+    "no-push-to-protected": "deny",
+    "no-reset-hard": "deny",
+    "no-discard-all": "ask",
     "no-rebase-on-protected": false,
-    "no-add-all": true,
-    "require-git-repo": true
+    "no-add-all": "ask",
+    "require-git-repo": "deny"
   }
 }
 ```
 
 Glob patterns work for branch names (`release/*` matches `release/1.0`).
+
+### Rule modes
+
+Every rule supports three modes:
+
+| Mode | Effect |
+|------|--------|
+| `"deny"` / `true` | Hard block — tool call is prevented |
+| `"ask"` | Prompt the user for confirmation before proceeding |
+| `false` | Disabled — no check performed |
+
+Use `"deny"` for operations that should never happen (force push, reset --hard). Use `"ask"` for operations where you want a human checkpoint (committing on protected, discarding changes). Backward compatible: `true` still works as an alias for `"deny"`.
 
 ## License
 

@@ -127,13 +127,33 @@ if [[ -z "$COMMAND" ]]; then
   exit 0
 fi
 
-# Sanitize command: strip heredoc content and quoted strings to prevent
-# false positives from git-related text inside arguments (fixes #16).
+# Sanitize command: strip heredoc content, quoted strings, and handle
+# shell indirection to prevent both false positives and evasion.
 SCAN="$COMMAND"
+
+# Collapse line continuations (backslash-newline) so patterns match
+# across split lines, e.g. "git push \<nl>--force" → "git push --force"
+SCAN=$(printf '%s' "$SCAN" | perl -pe 's/\\\n\s*/ /g')
+
+# Strip heredoc content
 if printf '%s' "$SCAN" | grep -q '<<'; then
   SCAN=$(printf '%s' "$SCAN" | perl -0777 -pe "s/<<~?'?(\w+)'?\s*\n.*?\n\1\b//gs" 2>/dev/null) || SCAN="$COMMAND"
 fi
+
+# Strip quoted strings, but preserve a copy for eval detection.
+# eval "git push --force" hides the payload inside quotes — if we detect
+# eval after stripping, we fall back to the pre-strip version.
+SCAN_BEFORE_QUOTES="$SCAN"
 SCAN=$(printf '%s' "$SCAN" | sed "s/'[^']*'//g" | sed 's/"[^"]*"//g')
+
+if printf '%s' "$SCAN" | grep -qE '\beval\b'; then
+  SCAN="$SCAN_BEFORE_QUOTES"
+fi
+
+# Unwrap subshell and backtick syntax so patterns match through them:
+# $(echo git) push --force → echo git push --force
+# `echo git` push --force  → echo git push --force
+SCAN=$(printf '%s' "$SCAN" | sed 's/\$(\([^)]*\))/\1/g' | sed 's/`\([^`]*\)`/\1/g')
 
 # Strip git global flags (-C <path>, -c <key=val>, --git-dir=<path>, --work-tree=<path>)
 # so "git -C /tmp/foo commit --amend" is scanned as "git commit --amend".
@@ -142,6 +162,16 @@ SCAN=$(printf '%s' "$SCAN" | perl -pe 's/\bgit\s+(?:(?:-[Cc]|--git-dir|--work-tr
 # Quick check: does the sanitized command invoke git or gh?
 if ! printf '%s' "$SCAN" | grep -qE '\b(git|gh)\b'; then
   exit 0
+fi
+
+# Shell indirection: xargs piping args to git — can't verify what runs
+if printf '%s' "$SCAN" | grep -qE '\bxargs\b.*\sgit(\s|$)'; then
+  deny "xargs with git is blocked — cannot verify the git subcommand is safe. Run git commands directly."
+fi
+
+# Shell indirection: variable in git subcommand position — can't verify what runs
+if printf '%s' "$SCAN" | grep -qE '\bgit\s+\$\w+'; then
+  deny "git with a variable subcommand is blocked — cannot verify safety. Run git commands directly."
 fi
 
 # 1. No amend

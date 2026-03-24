@@ -45,7 +45,7 @@ For protected branches: the first config that defines `protected-branches` wins 
 |------|---------|-------------|
 | `no-amend` | `deny` | Block `git commit --amend` |
 | `no-commit-on-protected` | `deny` | Block commits directly on protected branches |
-| `no-push-to-protected` | `deny` | Block pushing to protected branches |
+| `no-push-to-protected` | `ask` | Prompt before pushing to protected branches |
 | `no-force-push` | `deny` | Block `--force`, `--force-with-lease`, and `+refspec` pushes |
 | `no-reset-hard` | `deny` | Block `git reset --hard` |
 | `no-discard-all` | `deny` | Block `git checkout .`, `git restore .`, `git clean -f` |
@@ -84,7 +84,7 @@ Example output:
 |-------------------------|-------------------------------------|---------|--------|---------|-----------|
 | no-amend                | Block git commit --amend            | deny    | -      | ask     | ask       |
 | no-commit-on-protected  | Block commits on protected branches | deny    | -      | -       | deny      |
-| no-push-to-protected    | Block pushing to protected branches | deny    | deny   | -       | deny      |
+| no-push-to-protected    | Prompt before pushing to protected  | ask     | deny   | -       | deny      |
 | no-force-push           | Block force push                    | deny    | -      | -       | deny      |
 | no-reset-hard           | Block git reset --hard              | deny    | -      | -       | deny      |
 | no-discard-all          | Block checkout/restore/clean all    | deny    | -      | allow   | allow     |

@@ -51,6 +51,7 @@ For protected branches: the first config that defines `protected-branches` wins 
 | `no-discard-all` | `deny` | Block `git checkout .`, `git restore .`, `git clean -f` |
 | `no-rebase-on-protected` | `deny` | Block rebase while on a protected branch |
 | `no-add-all` | `deny` | Block `git add -A` and `git add .` |
+| `no-merge-pr` | `ask` | Require approval before `gh pr merge` |
 | `require-git-repo` | `allow` | Require a git repo for Write/Edit operations |
 
 ## Valid modes

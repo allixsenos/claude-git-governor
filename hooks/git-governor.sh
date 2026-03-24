@@ -14,12 +14,13 @@ DEFAULT_PROTECTED_BRANCHES='["main","master"]'
 DEFAULT_RULES='{
   "no-amend": "deny",
   "no-commit-on-protected": "deny",
-  "no-push-to-protected": "deny",
+  "no-push-to-protected": "ask",
   "no-force-push": "deny",
   "no-reset-hard": "deny",
   "no-discard-all": "deny",
   "no-rebase-on-protected": "deny",
   "no-add-all": "deny",
+  "no-merge-pr": "ask",
   "require-git-repo": "allow"
 }'
 
@@ -134,8 +135,8 @@ if printf '%s' "$SCAN" | grep -q '<<'; then
 fi
 SCAN=$(printf '%s' "$SCAN" | sed "s/'[^']*'//g" | sed 's/"[^"]*"//g')
 
-# Quick check: does the sanitized command invoke git?
-if ! printf '%s' "$SCAN" | grep -qE '\bgit\b'; then
+# Quick check: does the sanitized command invoke git or gh?
+if ! printf '%s' "$SCAN" | grep -qE '\b(git|gh)\b'; then
   exit 0
 fi
 
@@ -236,6 +237,14 @@ if rule_active "$MODE"; then
   # git add . (but not git add ./specific/path)
   if printf '%s' "$SCAN" | grep -qE '\bgit\s+add\s+\.(\s|$)'; then
     enforce "$MODE" "git add . is blocked. Stage specific files by name."
+  fi
+fi
+
+# 9. No merge PR without explicit approval (gh pr merge)
+MODE=$(rule_mode no-merge-pr)
+if rule_active "$MODE"; then
+  if printf '%s' "$SCAN" | grep -qE '\bgh\s+pr\s+merge\b'; then
+    enforce "$MODE" "gh pr merge requires explicit approval. Create the PR and let the user decide when to merge."
   fi
 fi
 

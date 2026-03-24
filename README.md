@@ -8,7 +8,7 @@ A Claude Code plugin that enforces git governance via PreToolUse hooks. Install 
 |------|---------|-------------|
 | `no-amend` | deny | Block `git commit --amend` |
 | `no-commit-on-protected` | deny | Block `git commit` on protected branches |
-| `no-push-to-protected` | deny | Block `git push` targeting protected branches |
+| `no-push-to-protected` | **ask** | Prompt before `git push` targeting protected branches |
 | `no-force-push` | deny | Block `--force`, `--force-with-lease`, `+refs` push syntax |
 | `no-reset-hard` | deny | Block `git reset --hard` |
 | `no-discard-all` | deny | Block `git checkout .`, `git restore .`, `git clean -f` |
@@ -48,7 +48,7 @@ Or drop a `.claude/git-governor.json` in your project root to override defaults:
     "no-amend": "deny",
     "no-force-push": "deny",
     "no-commit-on-protected": "ask",
-    "no-push-to-protected": "deny",
+    "no-push-to-protected": "ask",
     "no-reset-hard": "deny",
     "no-discard-all": "ask",
     "no-rebase-on-protected": "allow",

@@ -165,10 +165,10 @@ printf "\n${BOLD}Rule: no-push-to-protected${RESET}\n"
 setup
 
 run_hook "$(bash_input 'git push origin main')"
-expect_deny "blocks push to main"
+expect_ask "asks before push to main"
 
 run_hook "$(bash_input 'git push origin master')"
-expect_deny "blocks push to master"
+expect_ask "asks before push to master"
 
 run_hook "$(bash_input 'git push origin feature-branch')"
 expect_allow "allows push to feature branch"
@@ -340,7 +340,7 @@ clear_config
 # Custom protected branches
 set_config '{"protected-branches":["main","master","release/*"]}'
 run_hook "$(bash_input 'git push origin release/1.0')"
-expect_deny "blocks push to glob-matched protected branch"
+expect_ask "asks before push to glob-matched protected branch"
 
 run_hook "$(bash_input 'git push origin develop')"
 expect_allow "allows push to non-protected branch"
@@ -369,7 +369,7 @@ clear_config
 # Global protected branches
 echo '{"protected-branches":["main","staging"]}' > "$FAKE_HOME/.claude/git-governor.json"
 run_hook_with_home "$(bash_input 'git push origin staging')" "$FAKE_HOME"
-expect_deny "global config: blocks push to globally-protected branch"
+expect_ask "global config: asks before push to globally-protected branch"
 
 # Project overrides global protected branches
 set_config '{"protected-branches":["main"]}'

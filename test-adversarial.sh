@@ -15,7 +15,6 @@ TOTAL=0
 # Colors
 GREEN='\033[0;32m'
 RED='\033[0;31m'
-YELLOW='\033[0;33m'
 BOLD='\033[1m'
 RESET='\033[0m'
 
@@ -96,22 +95,6 @@ expect_allow() {
   fi
 }
 
-# Known gap: document a bypass that we accept as out-of-scope
-known_gap() {
-  local label="$1"
-  TOTAL=$((TOTAL + 1))
-  local decision
-  decision=$(get_decision)
-  if [[ -z "$decision" ]]; then
-    PASS=$((PASS + 1))
-    printf "  ${YELLOW}SKIP${RESET} %s (known gap — bypasses as expected)\n" "$label"
-  else
-    # If it's actually caught, even better
-    PASS=$((PASS + 1))
-    printf "  ${GREEN}PASS${RESET} %s (caught despite being a known gap!)\n" "$label"
-  fi
-}
-
 set_config() {
   local config="$1"
   mkdir -p "$TEST_DIR/.claude"
@@ -180,20 +163,20 @@ expect_blocked "git status && git push --force"
 teardown
 
 # ============================================================
-printf "\n${BOLD}3. Shell indirection (known gaps)${RESET}\n"
+printf "\n${BOLD}3. Shell indirection${RESET}\n"
 setup
 
 run_hook "$(bash_input 'eval "git push --force origin main"')"
-known_gap "eval with git push --force"
+expect_blocked "eval with git push --force"
 
 run_hook "$(bash_input 'cmd=push; git $cmd --force')"
-known_gap "variable expansion: git \$cmd --force"
+expect_blocked "variable expansion: git \$cmd --force"
 
 run_hook "$(bash_input '$(echo git) push --force')"
-known_gap "subshell: \$(echo git) push --force"
+expect_blocked "subshell: \$(echo git) push --force"
 
 run_hook "$(bash_input 'echo "push --force" | xargs git')"
-known_gap "xargs: echo | xargs git"
+expect_blocked "xargs: echo | xargs git"
 
 teardown
 
@@ -202,10 +185,10 @@ printf "\n${BOLD}4. Binary path instead of bare git${RESET}\n"
 setup
 
 run_hook "$(bash_input '/usr/bin/git push --force origin main')"
-known_gap "/usr/bin/git push --force"
+expect_blocked "/usr/bin/git push --force"
 
 run_hook "$(bash_input '/usr/bin/git commit --amend')"
-known_gap "/usr/bin/git commit --amend"
+expect_blocked "/usr/bin/git commit --amend"
 
 teardown
 
@@ -214,13 +197,13 @@ printf "\n${BOLD}5. Command wrappers${RESET}\n"
 setup
 
 run_hook "$(bash_input 'env git push --force origin main')"
-known_gap "env git push --force"
+expect_blocked "env git push --force"
 
 run_hook "$(bash_input 'command git push --force origin main')"
-known_gap "command git push --force"
+expect_blocked "command git push --force"
 
 run_hook "$(bash_input 'nice git push --force origin main')"
-known_gap "nice git push --force"
+expect_blocked "nice git push --force"
 
 teardown
 
@@ -228,13 +211,13 @@ teardown
 printf "\n${BOLD}6. Sanitizer edge cases${RESET}\n"
 setup
 
-# Backtick expansion (not stripped by the sanitizer)
+# Backtick expansion
 run_hook "$(bash_input 'git push `echo --force` origin main')"
-known_gap "backtick expansion: git push \`echo --force\`"
+expect_blocked "backtick expansion: git push \`echo --force\`"
 
 # $() expansion inside the command
 run_hook "$(bash_input 'git push $(echo --force) origin main')"
-known_gap "subshell expansion: git push \$(echo --force)"
+expect_blocked "subshell expansion: git push \$(echo --force)"
 
 # Unbalanced quotes — the sed should still strip what it can
 run_hook "$(bash_input "git commit --amend -m \"it's a fix\"")"
@@ -285,7 +268,7 @@ run_hook "$(bash_input 'git	commit	--amend')"
 expect_blocked "tab chars: git<tab>commit<tab>--amend"
 
 run_hook "$(bash_input $'git push \\\n--force origin main')"
-known_gap "line continuation: git push \\\\n--force"
+expect_blocked "line continuation: git push \\\\n--force"
 
 teardown
 

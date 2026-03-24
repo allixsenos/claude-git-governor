@@ -135,6 +135,10 @@ if printf '%s' "$SCAN" | grep -q '<<'; then
 fi
 SCAN=$(printf '%s' "$SCAN" | sed "s/'[^']*'//g" | sed 's/"[^"]*"//g')
 
+# Strip git global flags (-C <path>, -c <key=val>, --git-dir=<path>, --work-tree=<path>)
+# so "git -C /tmp/foo commit --amend" is scanned as "git commit --amend".
+SCAN=$(printf '%s' "$SCAN" | perl -pe 's/\bgit\s+(?:(?:-[Cc]|--git-dir|--work-tree)(?:=\S+|\s+\S+)\s+)*/git /g')
+
 # Quick check: does the sanitized command invoke git or gh?
 if ! printf '%s' "$SCAN" | grep -qE '\b(git|gh)\b'; then
   exit 0

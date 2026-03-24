@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.2.0](https://github.com/allixsenos/claude-git-governor/compare/v2.1.0...v2.2.0) (2026-03-24)
+
+
+### Features
+
+* adversarial test suite and CI ([#34](https://github.com/allixsenos/claude-git-governor/issues/34)) ([e57eb9c](https://github.com/allixsenos/claude-git-governor/commit/e57eb9c5e6e84da0d6b06046c142aa6ad656ea3f))
+
+
+### Bug Fixes
+
+* close 5 adversarial evasion gaps ([#39](https://github.com/allixsenos/claude-git-governor/issues/39)) ([cd892fb](https://github.com/allixsenos/claude-git-governor/commit/cd892fb8d5fe03e2adc2408a819cd43a32ff27f2))
+
 ## [2.1.0](https://github.com/allixsenos/claude-git-governor/compare/v2.0.1...v2.1.0) (2026-03-24)
 
 

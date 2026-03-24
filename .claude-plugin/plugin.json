@@ -1,6 +1,6 @@
 {
   "name": "git-governor",
-  "version": "2.0.1",
+  "version": "2.1.0",
   "description": "Enforce git governance — block or prompt on amends, direct commits to protected branches, force pushes, destructive resets, and more",
   "author": {
     "name": "Luka Kladarić",
@@ -8,5 +8,11 @@
   },
   "repository": "https://github.com/allixsenos/claude-git-governor",
   "license": "MIT",
-  "keywords": ["git", "safety", "governance", "hooks", "protection"]
+  "keywords": [
+    "git",
+    "safety",
+    "governance",
+    "hooks",
+    "protection"
+  ]
 }
